@@ -5,7 +5,7 @@ def create_app(test_configure= None):
     app = Flask(__name__)
 
     #CORS APP
-    cors = CORS(app, resources = {r"/api/*":{"origins":"*"}})
+    cors = CORS(app, resources = {r"*/api/*":{"origins":"*"}})
 
     # CORS Headers
     @app.after_request
@@ -15,7 +15,9 @@ def create_app(test_configure= None):
                 return response
 
     @app.route('/mesages')
-    @cross_origin()
+
+
+#     @cross_origin()
     def get_messages():
                 return 'GETTING MESSAGES'
 
