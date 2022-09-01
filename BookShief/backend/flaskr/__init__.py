@@ -63,31 +63,101 @@ def create_app(test_config=None):
     #         Response body keys: 'success'
     # TEST: When completed, you will be able to click on stars to update a book's rating and it will persist after refresh
 
-    # @app.route('/books/<int:book_id>', methods = 'UPDATE')
-    # def update_book(book_id):
-    #     book = Book.query.get(book_id)
-    #     book.author = 'Mike knau'
-    #     book.id = '21'
-    #     book.rating = '5'
-    #     book.title = 'Ignitonious'
-    #     book.update()
+    @app.route('/books/<int:book_id>', methods = ['PATCH'])
+    def update_book(book_id):
+        body = request.get_json()
+        book = Book.query.get(book_id)
+        print(book)
+        try:
+            if book is None:
+                abort(400)
+            else:
+                for val in body:
+                    if val is not None:
+                        if val == 'id':
+                            book.id =  int(body.get('id'))
+                        elif val == 'rating':
+                            book.rating =  int(body.get('id'))
+                        elif val == 'author':
+                            book.author =  body.get('author')
+                        elif val == 'title':
+                            book.title = body.get('title')  
+            book.update()
+            return({
+                'Success': True,
+                'id': book.id
+            })
+        except:
+            abort(404)
+
+
     # @TODO: Write a route that will delete a single book.
     #        Response body keys: 'success', 'deleted'(id of deleted book), 'books' and 'total_books'
     #        Response body keys: 'success', 'books' and 'total_books'
-    # @app.route('/books/<int:book_id>', methods='DELETE')
-    # def delete_book(book_id):
-    #     book = Book.query.get(book_id)
-    #     book.delete()
-    #     return({
-    #         'success': True
-    #     })
+    @app.route('/books/<int:book_id>', methods=['DELETE'])
+    def delete_book(book_id):
+        book = Book.query.get(book_id)
+        book.delete()
+
+        books = Book.query.order_by(Book.id).all()
+
+        page = request.args.get('page', 1, type=int)
+        start = (page - 1) * 3
+        end = start + 3
+
+        formatted_book = [book.format() for book in books]
+
+        if len(formatted_book) == 0:
+            abort(404)
+        else:
+            return({
+                'status': True,
+                'total_book': len(formatted_book),
+                'books': formatted_book[start:end]
+            })
     # TEST: When completed, you will be able to delete a single book by clicking on the trashcan.
 
     # @TODO: Write a route that create a new book.
     #        Response body keys: 'success', 'created'(id of created book), 'books' and 'total_books'
     # TEST: When completed, you will be able to a new book using the form. Try doing so from the last page of books.
     #       Your new book should show up immediately after you submit it at the end of the page.
-    # @app.route('/books', methods = 'POST')
-    # def create_book():
+    
+    @app.route('/books', methods = ['POST'])
+    def create_book():
+        body = request.get_json()
+
+        new_title = body.get('title'),
+        new_author = body.get('author'),
+        new_rating = body.get('rating')
+     
+        try:
+            book = Book(  author = new_author, rating= new_rating, title = new_title)
+            print(book.author)
+            print('Hello here')
+
+            book.insert()
+
+            return jsonify({
+                'success': True
+            })
+
+        except:
+            abort(404)
+
+    @app.errorhandler(404)
+    def not_found(error):
+        return jsonify({
+            "success": False, 
+            "error": 404,
+            "message": "Not found"
+            }), 404
+    
+    @app.errorhandler(422)
+    def unprocessable(error):
+        return jsonify({
+            "success": False, 
+            "error": 422,
+            "message": "unprocessable"
+            }), 422
 
     return app
