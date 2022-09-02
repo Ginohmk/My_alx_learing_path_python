@@ -6,13 +6,25 @@ import random
 
 from models import setup_db, Book
 
-BOOKS_PER_SHELF = 8
+BOOKS_PER_SHELF = 3
 
 # @TODO: General Instructions
 #   - As you're creating endpoints, define them and then search for 'TODO' within the frontend to update the endpoints there.
 #     If you do not update the endpoints, the lab will not work - of no fault of your API code!
 #   - Make sure for each route that you're thinking through when to abort and with which kind of error
 #   - If you change any of the response body keys, make sure you update the frontend to correspond.
+
+
+def paginate_books(request, selection):
+    page = request.args.get('page', 1, type=int)
+    start =  (page - 1) * BOOKS_PER_SHELF
+    end = start + BOOKS_PER_SHELF
+
+    books = [book.format() for book in selection]
+    current_books = books[start:end]
+
+    return current_books
+
 
 
 def create_app(test_config=None):
@@ -43,20 +55,19 @@ def create_app(test_config=None):
     def get_books():
         books = Book.query.order_by(Book.id).all()
 
-        page = request.args.get('page', 1, type=int)
-        start = (page - 1) * 3
-        end = start + 3
+        selection = Book.query.order_by(Book.id).all()
 
-        formatted_book = [book.format() for book in books]
+        current_books = paginate_books(request, selection)
 
-        if len(formatted_book) == 0:
+        if len(current_books) == 0:
             abort(404)
         else:
             return({
-                'status': True,
-                'total_book': len(formatted_book),
-                'books': formatted_book[start:end]
+                'success': True,
+                'total_book': len(current_books),
+                'books':current_books
             })
+
     # @TODO: Write a route that will update a single book's rating.
     #         It should only be able to update the rating, not the entire representation
     #         and should follow API design principles regarding method and route.
@@ -84,7 +95,7 @@ def create_app(test_config=None):
                             book.title = body.get('title')  
             book.update()
             return({
-                'Success': True,
+                'success': True,
                 'id': book.id
             })
         except:
@@ -97,23 +108,25 @@ def create_app(test_config=None):
     @app.route('/books/<int:book_id>', methods=['DELETE'])
     def delete_book(book_id):
         book = Book.query.get(book_id)
+
+        if book is None:
+            abort(404)
+
+
         book.delete()
 
-        books = Book.query.order_by(Book.id).all()
+        selection = Book.query.order_by(Book.id).all()
 
-        page = request.args.get('page', 1, type=int)
-        start = (page - 1) * 3
-        end = start + 3
+        current_books = paginate_books(request, selection)
 
-        formatted_book = [book.format() for book in books]
-
-        if len(formatted_book) == 0:
+        if len(current_books) == 0:
             abort(404)
+            
         else:
             return({
-                'status': True,
-                'total_book': len(formatted_book),
-                'books': formatted_book[start:end]
+                'success': True,
+                'total_book': len(Book.query.all()),
+                'books': current_books
             })
     # TEST: When completed, you will be able to delete a single book by clicking on the trashcan.
 
@@ -122,27 +135,49 @@ def create_app(test_config=None):
     # TEST: When completed, you will be able to a new book using the form. Try doing so from the last page of books.
     #       Your new book should show up immediately after you submit it at the end of the page.
     
-    @app.route('/books', methods = ['POST'])
+    @app.route('/books', methods=['POST'])
     def create_book():
         body = request.get_json()
 
-        new_title = body.get('title'),
-        new_author = body.get('author'),
-        new_rating = body.get('rating')
-     
+        new_title = body.get('title', None)
+        new_author = body.get('author', None)
+        new_rating = body.get('rating', None)
+        search = body.get('search', None)
+
         try:
-            book = Book(  author = new_author, rating= new_rating, title = new_title)
-            print(book.author)
-            print('Hello here')
+            if search:
+                selection = Book.query.order_by(Book.id).filter(Book.title.ilike('%{}%'.format(search)))
+                current_books = paginate_books(request, selection)
 
-            book.insert()
-
-            return jsonify({
-                'success': True
+                return jsonify({
+                'success': True,
+                'books': current_books,
+                'total_books': len(selection.all())
             })
+
+            else:
+                book = Book(title=new_title, author=new_author, rating=new_rating)
+
+                
+                book.insert()
+
+                print(book)
+
+                selection = Book.query.order_by(Book.id).all()
+                current_books = paginate_books(request, selection)
+
+        
+                return jsonify({
+                    'success': True,
+                    'created': book.id,
+                    'books': current_books,
+                    'total_books': len(Book.query.all())
+                })
 
         except:
             abort(404)
+
+
 
     @app.errorhandler(404)
     def not_found(error):
